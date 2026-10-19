@@ -381,6 +381,20 @@ function onChipClick(event) {
 async function onDownloadPdf() {
   if (queue.length === 0) return;
 
+  // The PDF library loads from the internet. If it did not load, say so.
+  if (typeof html2pdf === 'undefined') {
+    getEl('status').textContent = 'The PDF library did not load. Check your internet connection and refresh.';
+    return;
+  }
+
+  // BLANK-PDF FIX: the PDF tool captures the page from the top-left corner.
+  // If you are scrolled down (the sheet is at the bottom of the page),
+  // it captures the wrong area and gives an empty white PDF.
+  // So we remember where you were, jump to the top, and return afterwards.
+  const savedScrollX = window.scrollX;
+  const savedScrollY = window.scrollY;
+  window.scrollTo(0, 0);
+
   const button = getEl('pdfBtn');
   const status = getEl('status');
   button.disabled = true;
@@ -400,7 +414,15 @@ async function onDownloadPdf() {
       margin: 0,                                           // no page margin
       filename: 'file-labels-' + form.year + '.pdf',
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+      html2canvas: {
+        scale: 2,                  // 2x sharper picture
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        scrollX: 0,                // ignore the page scroll position
+        scrollY: 0,
+        windowWidth: 1300,         // pretend the window is wider than the paper (297mm = 1123px)
+        windowHeight: 900
+      },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
     }).from(hidden.firstChild).save();
 
@@ -409,6 +431,7 @@ async function onDownloadPdf() {
     status.textContent = 'The PDF could not be created. Try again.';
   } finally {
     hidden.remove();                      // delete the hidden copy
+    window.scrollTo(savedScrollX, savedScrollY);   // go back to where you were
     button.textContent = 'Download PDF';
     drawSheet();                          // restores button states
   }
